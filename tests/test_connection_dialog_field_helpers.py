@@ -54,6 +54,17 @@ class TestTagCandidates:
         d.parent_window = type("P", (), {"config": cfg})()
         assert d._tag_candidates() == ["work", "home"]
 
+    def test_returns_tags_from_daemon_store(self):
+        d = _dialog()
+        metadata = (
+            type("M", (), {"connection_id": "one", "values": {"tags": ["Prod"]}})(),
+            type("M", (), {"connection_id": "two", "values": {"tags": ["web"]}})(),
+        )
+        store = type("S", (), {"metadata": metadata})()
+        cfg = type("C", (), {"get_all_tags": lambda self: []})()
+        d.parent_window = type("P", (), {"config": cfg, "connection_manager": store})()
+        assert d._tag_candidates() == ["Prod", "web"]
+
 
 class TestJumpHostCandidates:
     def test_no_manager_returns_empty(self):

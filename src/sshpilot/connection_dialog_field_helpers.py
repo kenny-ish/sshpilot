@@ -175,12 +175,34 @@ class ConnectionDialogFieldHelpersMixin:
         popover.popup()
         search_entry.grab_focus()
 
-    def _tag_candidates(self):
-        """Known tags for inline completion in the tags row."""
-        cfg = getattr(self.parent_window, 'config', None)
+    def _tag_candidates_with_counts(self):
+        """Return known tags from the daemon-backed store or legacy config."""
+        parent = getattr(self, 'parent_window', None)
+        store = getattr(parent, 'connection_manager', None)
+        if store is not None and hasattr(store, 'metadata'):
+            tag_map = {
+                item.connection_id: item.values.get('tags', [])
+                for item in store.metadata
+                if hasattr(item, 'values') and hasattr(item.values, 'get')
+                and isinstance(item.values.get('tags', []), list)
+            }
+            from .tag_groups import compute_tag_groups
+            return [
+                (tag, len(connection_ids))
+                for tag, connection_ids in compute_tag_groups(tag_map)
+            ]
+
+        cfg = getattr(parent, 'config', None)
         if cfg is None or not hasattr(cfg, 'get_all_tags'):
             return []
-        return [t for t, _n in cfg.get_all_tags()]
+        try:
+            return cfg.get_all_tags()
+        except Exception:
+            return []
+
+    def _tag_candidates(self):
+        """Known tags for inline completion in the tags row."""
+        return [tag for tag, _count in self._tag_candidates_with_counts()]
 
     def _jump_host_candidates(self):
         """Saved connection nicknames for inline completion in the jump hosts row."""
@@ -287,13 +309,7 @@ class ConnectionDialogFieldHelpersMixin:
 
     def _show_tag_picker_popover(self, button):
         """Show a popover to pick from the tags already used by other connections."""
-        cfg = getattr(self.parent_window, 'config', None)
-        if cfg is None or not hasattr(cfg, 'get_all_tags'):
-            return
-        try:
-            candidates = cfg.get_all_tags()
-        except Exception:
-            candidates = []
+        candidates = self._tag_candidates_with_counts()
         if not candidates:
             return
 
